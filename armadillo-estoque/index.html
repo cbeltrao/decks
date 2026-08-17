@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Armadillo — Primeira missão de estoque · StationZero</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23171009'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Georgia' font-style='italic' font-size='18' fill='%23d97b50'%3Ea%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Archivo:ital,wght@0,300..700;1,300..700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #171009;
+    --bg-raise:  #221910;
+    --line:      #3a2d1f;
+    --ink:       #efe5d3;
+    --muted:     #a4937b;
+    --faint:     #6e6252;
+    --accent:    #d97b50;
+    --accent-dim:#8a4f34;
+    --ochre:     #c9a227;
+    --serif: "Fraunces", Georgia, serif;
+    --sans:  "Archivo", "Helvetica Neue", sans-serif;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  html, body { height:100%; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.5;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- atmosphere ---------- */
+  .atmo {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(1200px 700px at 78% -10%, rgba(217,123,80,.09), transparent 60%),
+      radial-gradient(900px 600px at -5% 110%, rgba(201,162,39,.05), transparent 55%);
+  }
+  .grain {
+    position: fixed; inset: -50%; pointer-events: none; z-index: 40;
+    opacity: .05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  }
+
+  /* ---------- deck chrome ---------- */
+  .progress {
+    position: fixed; top:0; left:0; height:2px; z-index:50;
+    background: var(--accent); width:0%;
+    transition: width .5s cubic-bezier(.7,0,.2,1);
+  }
+  .chrome {
+    position: fixed; z-index: 50; left:0; right:0; bottom:0;
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 0 44px 26px;
+    pointer-events:none;
+  }
+  .counter {
+    font-family: var(--serif); font-style: italic;
+    font-size: 15px; color: var(--muted); letter-spacing:.04em;
+    font-variant-numeric: tabular-nums;
+  }
+  .counter b { color: var(--ink); font-weight: 500; }
+  .brandmark {
+    position: fixed; top: 24px; left: 44px; z-index: 50;
+    font-size: 11px; letter-spacing: .22em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .brandmark span { color: var(--accent); }
+  .navbtns { display:flex; gap:10px; pointer-events:auto; }
+  .navbtns button {
+    width:44px; height:44px; border-radius:50%;
+    background: transparent; border:1px solid var(--line);
+    color: var(--ink); font-size:17px; cursor:pointer;
+    transition: border-color .2s, background .2s, color .2s;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .navbtns button:hover { border-color: var(--accent); color: var(--accent); }
+  .navbtns button:disabled { opacity:.25; cursor:default; }
+  .navbtns button:disabled:hover { border-color: var(--line); color: var(--ink); }
+
+  /* ---------- slides ---------- */
+  .deck { position: relative; height: 100%; z-index: 1; }
+
+  .slide {
+    position:absolute; inset:0;
+    padding: 96px 108px 108px;
+    display:flex; flex-direction:column; justify-content:center;
+    visibility:hidden; opacity:0;
+    transition: opacity .45s ease, visibility 0s .45s;
+  }
+  .slide.active {
+    visibility:visible; opacity:1;
+    transition: opacity .55s ease;
+  }
+
+  /* ghost numeral — recurring motif */
+  .ghost {
+    position:absolute; right: 40px; bottom: -70px;
+    font-family: var(--serif); font-style: italic; font-weight: 300;
+    font-size: 380px; line-height: 1;
+    color: transparent;
+    -webkit-text-stroke: 1px rgba(239,229,211,.07);
+    user-select:none; pointer-events:none;
+  }
+
+  /* staggered reveal */
+  [data-r] { opacity:0; }
+  .slide.active [data-r] {
+    animation: rise .7s cubic-bezier(.22,.9,.3,1) forwards;
+    animation-delay: calc(var(--i, 0) * 90ms + 80ms);
+  }
+  @keyframes rise {
+    from { opacity:0; transform: translateY(22px); }
+    to   { opacity:1; transform: none; }
+  }
+
+  /* ---------- shared type ---------- */
+  .eyebrow {
+    font-size: 12px; letter-spacing:.24em; text-transform:uppercase;
+    color: var(--accent); margin-bottom: 26px; font-weight:500;
+  }
+  .eyebrow .sep { color: var(--muted); margin: 0 10px; }
+  h1, h2 { font-family: var(--serif); font-weight: 420; letter-spacing:-.01em; }
+  h2 { font-size: clamp(34px, 4.4vw, 54px); line-height:1.08; max-width: 18em; }
+  h2 em, h1 em { font-style: italic; color: var(--accent); font-weight:380; }
+  .lede {
+    font-size: 18px; color: var(--muted); max-width: 44em; line-height:1.65;
+    margin-top: 22px;
+  }
+  .lede strong { color: var(--ink); font-weight: 500; }
+
+  /* ---------- slide 1 · cover ---------- */
+  .cover h1 {
+    font-size: clamp(56px, 8vw, 110px);
+    line-height: .98; letter-spacing: -.015em;
+    max-width: 9.5em;
+  }
+  .cover .kicker {
+    font-size:12px; letter-spacing:.24em; text-transform:uppercase;
+    color: var(--muted); margin-bottom: 34px;
+  }
+  .cover .kicker b { color: var(--ink); font-weight:500; }
+  .statusrow {
+    display:flex; gap: 40px; margin-top: 54px; flex-wrap:wrap;
+    border-top: 1px solid var(--line); padding-top: 28px; max-width: 860px;
+  }
+  .status { max-width: 300px; }
+  .status .lbl {
+    font-size: 11px; letter-spacing:.2em; text-transform:uppercase;
+    color: var(--muted); margin-bottom: 8px;
+  }
+  .status .val { font-size: 15px; line-height: 1.55; }
+  .dot {
+    display:inline-block; width:8px; height:8px; border-radius:50%;
+    background: var(--ochre); margin-right: 8px;
+    box-shadow: 0 0 12px rgba(201,162,39,.6);
+  }
+  .hint {
+    position:absolute; bottom: 30px; left: 0; right: 0; text-align: center;
+    font-size: 12px; color: var(--muted); letter-spacing:.06em;
+  }
+  .hint kbd {
+    font-family:inherit; border:1px solid var(--line); border-radius:5px;
+    padding: 2px 8px; margin: 0 2px; font-size: 11px;
+  }
+
+  /* ---------- slide 2 · decisão ---------- */
+  .bigstate {
+    font-family: var(--serif); font-weight: 380;
+    font-size: clamp(28px, 3.3vw, 44px); line-height: 1.28;
+    max-width: 22em; letter-spacing:-.005em;
+  }
+  .bigstate em { color: var(--accent); font-style: italic; }
+  .statrow { display:flex; gap: 64px; margin-top: 56px; flex-wrap:wrap; }
+  .stat .n {
+    font-family: var(--serif); font-size: 58px; font-weight: 350;
+    line-height:1; color: var(--ink);
+  }
+  .stat .n small { font-size: 24px; font-style: italic; color: var(--muted); margin-left:6px; }
+  .stat .t { font-size: 12px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); margin-top:10px; }
+  .outcomes {
+    display:flex; align-items:center; gap: 18px; margin-top: 58px;
+    font-family: var(--serif); font-size: 24px; font-style: italic;
+  }
+  .outcomes .o { color: var(--ink); }
+  .outcomes .sep { width:34px; height:1px; background: var(--accent-dim); }
+  .caveat {
+    margin-top: 34px; font-size: 14px; color: var(--muted); max-width: 46em;
+    padding-left: 16px; border-left: 2px solid var(--accent-dim); line-height:1.6;
+  }
+
+  /* ---------- ledger list (slide 3) ---------- */
+  .split { display:grid; grid-template-columns: minmax(260px, 1fr) 1.6fr; gap: 72px; align-items:start; }
+  .split h2 { max-width: 9em; }
+  .ledger { border-top: 1px solid var(--line); }
+  .ledger .row {
+    display:flex; align-items:baseline; gap: 28px;
+    padding: 21px 0; border-bottom: 1px solid var(--line);
+  }
+  .ledger .num {
+    font-family: var(--serif); font-style: italic; font-size: 16px;
+    color: var(--accent); min-width: 34px;
+  }
+  .ledger .txt { font-size: 18.5px; }
+  .ledger .txt small { display:block; font-size:13.5px; color: var(--muted); margin-top:4px; }
+
+  /* ---------- reason cards (slide 4) ---------- */
+  .cards { display:grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 52px; }
+  .card {
+    background: var(--bg-raise); border: 1px solid var(--line);
+    border-radius: 10px; padding: 26px 24px 24px;
+    display:flex; flex-direction:column; gap: 10px;
+  }
+  .card .cn {
+    font-family: var(--serif); font-style: italic;
+    font-size: 15px; color: var(--accent);
+  }
+  .card h3 { font-family: var(--serif); font-weight: 480; font-size: 19.5px; line-height: 1.25; }
+  .card p { font-size: 13.5px; color: var(--muted); line-height: 1.55; }
+  .card.wide { grid-column: span 1; }
+
+  /* ---------- alternatives (slide 5) ---------- */
+  .alts { display:grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 54px; }
+  .alt {
+    border-top: 1px solid var(--line);
+    padding-top: 22px;
+  }
+  .alt .tag {
+    display:inline-block; font-size: 10.5px; letter-spacing:.2em; text-transform:uppercase;
+    color: var(--accent); border: 1px solid var(--accent-dim);
+    padding: 4px 10px; border-radius: 99px; margin-bottom: 16px;
+  }
+  .alt h3 {
+    font-family: var(--serif); font-weight: 460; font-size: 23px;
+    line-height:1.2; margin-bottom: 6px;
+  }
+  .alt .verdict { font-family: var(--serif); font-style: italic; font-size: 16px; color: var(--accent); margin-bottom: 12px; }
+  .alt p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+  /* ---------- modus operandi (slide 6) ---------- */
+  .princ { display:grid; grid-template-columns: repeat(2, 1fr); gap: 0 60px; margin-top: 46px; max-width: 1120px; }
+  .princ .p {
+    display:flex; gap: 20px; padding: 15px 0;
+    border-bottom: 1px solid var(--line); align-items:baseline;
+  }
+  .princ .p:nth-last-child(1), .princ .p:nth-last-child(2) { border-bottom:none; }
+  .princ .pn {
+    font-family: var(--serif); font-style: italic; font-size: 15px;
+    color: var(--accent); min-width: 26px;
+  }
+  .princ .pt b { display:block; font-weight: 560; font-size: 15.5px; margin-bottom: 2px; }
+  .princ .pt span { font-size: 13px; color: var(--muted); line-height:1.5; }
+
+  /* ---------- cycle (slide 7) ---------- */
+  .phases { margin-top: 58px; display:flex; flex-direction:column; gap: 44px; max-width: 1080px; }
+  .phase .plbl {
+    font-size: 11px; letter-spacing:.22em; text-transform:uppercase;
+    color: var(--muted); margin-bottom: 18px;
+  }
+  .phase .plbl b { color: var(--accent); font-weight:600; }
+  .chain { display:flex; align-items:center; gap: 14px; flex-wrap:wrap; }
+  .step {
+    font-family: var(--serif); font-size: clamp(20px, 2.2vw, 30px); font-weight: 420;
+    background: var(--bg-raise); border:1px solid var(--line);
+    padding: 14px 26px; border-radius: 99px; white-space:nowrap;
+  }
+  .phase.two .step { background: transparent; border-style: dashed; color: var(--muted); }
+  .arrow { color: var(--accent); font-size: 20px; }
+  .executor {
+    margin-top: 52px; font-size: 14.5px; color: var(--muted); max-width: 46em;
+    padding-left: 16px; border-left: 2px solid var(--accent-dim); line-height: 1.65;
+  }
+  .executor b { color: var(--ink); font-weight: 500; }
+
+  /* ---------- prove grid (slide 8) ---------- */
+  .prove { display:grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 52px; }
+  .pv {
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: 24px 22px; background: var(--bg-raise);
+  }
+  .pv .q {
+    font-family: var(--serif); font-style:italic; font-size: 14px;
+    color: var(--accent); margin-bottom: 10px;
+  }
+  .pv p { font-size: 14.5px; line-height: 1.5; }
+
+  /* ---------- commercial (slide 9) ---------- */
+  .money { display:grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 54px; max-width: 1060px; }
+  .mcol { border-radius: 12px; padding: 34px 32px; }
+  .mcol.fix { background: var(--bg-raise); border: 1px solid var(--accent-dim); }
+  .mcol.var { border: 1px dashed var(--line); color: var(--muted); }
+  .mcol .mtag {
+    font-size: 11px; letter-spacing:.22em; text-transform:uppercase;
+    margin-bottom: 16px; color: var(--accent);
+  }
+  .mcol.var .mtag { color: var(--muted); }
+  .mcol h3 { font-family: var(--serif); font-weight: 440; font-size: 27px; margin-bottom: 12px; color: var(--ink); }
+  .mcol.var h3 { color: var(--muted); }
+  .mcol p { font-size: 14.5px; line-height: 1.65; color: var(--muted); }
+  .mcol.fix p b { color: var(--ink); font-weight: 500; }
+
+  /* ---------- review / closing (slide 10) ---------- */
+  .revlist { margin-top: 46px; max-width: 780px; border-top:1px solid var(--line); }
+  .revlist .row {
+    display:flex; gap: 24px; padding: 19px 0; border-bottom: 1px solid var(--line);
+    align-items:baseline;
+  }
+  .revlist .num { font-family: var(--serif); font-style:italic; color: var(--accent); min-width: 28px; font-size: 15px; }
+  .revlist .txt { font-size: 16.5px; }
+  .closing {
+    margin-top: 56px; display:flex; align-items:center; gap: 18px;
+    font-size: 12px; letter-spacing:.22em; text-transform:uppercase; color: var(--muted);
+  }
+  .closing .rule { width: 56px; height:1px; background: var(--accent-dim); }
+  .closing span b { color: var(--ink); font-weight: 500; }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 1100px) {
+    .slide { padding: 72px 56px 96px; }
+    .hint { left: 56px; }
+    .brandmark { left: 56px; }
+    .chrome { padding: 0 24px 20px; }
+    .cards, .alts, .prove { grid-template-columns: 1fr 1fr; }
+    .princ { grid-template-columns: 1fr; }
+    .princ .p:nth-last-child(2) { border-bottom: 1px solid var(--line); }
+    .split { grid-template-columns: 1fr; gap: 36px; }
+    .money { grid-template-columns: 1fr; }
+    .ghost { font-size: 240px; }
+  }
+  @media (max-width: 700px) {
+    .cards, .alts, .prove { grid-template-columns: 1fr; }
+    .slide { padding: 56px 28px 96px; overflow-y:auto; justify-content:flex-start; }
+    .hint { display:none; }
+  }
+
+  /* ---------- print ---------- */
+  @media print {
+    body { overflow: visible; background: var(--bg); }
+    .deck { height:auto; }
+    .slide {
+      position: relative; inset:auto; visibility:visible; opacity:1;
+      page-break-after: always; height: 100vh;
+    }
+    [data-r] { opacity:1 !important; animation: none !important; }
+    .chrome, .progress, .hint { display:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="atmo"></div>
+<div class="grain"></div>
+<div class="progress" id="progress"></div>
+<div class="brandmark">StationZero <span>×</span> Armadillo</div>
+
+<div class="deck" id="deck">
+
+  <!-- 01 · CAPA -->
+  <section class="slide cover">
+    <div class="ghost">01</div>
+    <p class="kicker" data-r style="--i:0">Documento de decisão · <b>17 de agosto de 2026</b></p>
+    <h1 data-r style="--i:1">A primeira missão<br>de <em>estoque</em>.</h1>
+    <div class="statusrow">
+      <div class="status" data-r style="--i:2">
+        <div class="lbl">Status</div>
+        <div class="val"><span class="dot"></span>Vigente</div>
+      </div>
+      <div class="status" data-r style="--i:3">
+        <div class="lbl">Confiança</div>
+        <div class="val">Moderada — a forma da missão está bem sustentada; a prioridade econômica ainda precisa ser medida.</div>
+      </div>
+      <div class="status" data-r style="--i:4">
+        <div class="lbl">Escopo</div>
+        <div class="val">Diagnóstico econômico e prova operacional do processo de decisão de estoque.</div>
+      </div>
+    </div>
+    <p class="hint" data-r style="--i:5">Navegue com <kbd>←</kbd><kbd>→</kbd> ou <kbd>espaço</kbd></p>
+  </section>
+
+  <!-- 02 · A DECISÃO -->
+  <section class="slide">
+    <div class="ghost">02</div>
+    <p class="eyebrow" data-r style="--i:0">A decisão</p>
+    <p class="bigstate" data-r style="--i:1">Uma missão paga de 30 dias, com preço fixo, para produzir um <em>diagnóstico econômico</em> e uma <em>prova operacional</em> do processo de decisão de estoque.</p>
+    <div class="statrow">
+      <div class="stat" data-r style="--i:2">
+        <div class="n">30<small>dias</small></div>
+        <div class="t">Vários ciclos semanais reais</div>
+      </div>
+      <div class="stat" data-r style="--i:3">
+        <div class="n">1<small>preço</small></div>
+        <div class="t">Fixo, sem variável nesta fase</div>
+      </div>
+      <div class="stat" data-r style="--i:4">
+        <div class="n">1<small>decisão</small></div>
+        <div class="t">Objetiva, ao final da missão</div>
+      </div>
+    </div>
+    <div class="outcomes" data-r style="--i:5">
+      <span class="o">escalar</span><span class="sep"></span>
+      <span class="o">corrigir</span><span class="sep"></span>
+      <span class="o">parar</span>
+    </div>
+    <p class="caveat" data-r style="--i:6">Nesta fase, não prometemos reduzir estoque nem gerar resultado financeiro específico — prometemos a evidência para decidir com segurança.</p>
+  </section>
+
+  <!-- 03 · A DISPUTA DE PRIORIDADE -->
+  <section class="slide">
+    <div class="ghost">03</div>
+    <div class="split">
+      <div>
+        <p class="eyebrow" data-r style="--i:0">O que está em disputa</p>
+        <h2 data-r style="--i:1">Qual problema <em>merece</em> a prioridade?</h2>
+        <p class="lede" data-r style="--i:2">A missão quantifica os cinco candidatos e decide — em vez de assumir a resposta.</p>
+      </div>
+      <div class="ledger">
+        <div class="row" data-r style="--i:2"><span class="num">01</span><span class="txt">Estoque parado ou de baixo giro</span></div>
+        <div class="row" data-r style="--i:3"><span class="num">02</span><span class="txt">Furos de grade por tamanho, cor e loja</span></div>
+        <div class="row" data-r style="--i:4"><span class="num">03</span><span class="txt">Alocação inadequada entre lojas</span></div>
+        <div class="row" data-r style="--i:5"><span class="num">04</span><span class="txt">Rupturas evitáveis</span></div>
+        <div class="row" data-r style="--i:6"><span class="num">05</span><span class="txt">Falhas de dados ou processo<small>que atravessam todos os sintomas acima</small></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 · POR QUE ESTE ESCOPO -->
+  <section class="slide">
+    <div class="ghost">04</div>
+    <p class="eyebrow" data-r style="--i:0">Por que este escopo</p>
+    <h2 data-r style="--i:1">Cinco razões para <em>medir antes</em> de prometer.</h2>
+    <div class="cards">
+      <div class="card" data-r style="--i:2">
+        <span class="cn">i.</span>
+        <h3>O problema existe; a prioridade, não foi provada</h3>
+        <p>Dados fragmentados, análises manuais e pouca rastreabilidade entre recomendação, transferência, recebimento e resultado.</p>
+      </div>
+      <div class="card" data-r style="--i:3">
+        <span class="cn">ii.</span>
+        <h3>A hipótese do CEO ainda é hipótese</h3>
+        <p>“Estoque parado é maior que ruptura” é uma percepção relevante. A missão a quantifica — não a trata como conclusão.</p>
+      </div>
+      <div class="card" data-r style="--i:4">
+        <span class="cn">iii.</span>
+        <h3>Os sintomas estão conectados</h3>
+        <p>Uma loja pode ter estoque agregado e perder venda por falta de um tamanho ou cor. Grade, estoque parado e alocação se respondem juntos.</p>
+      </div>
+      <div class="card" data-r style="--i:5">
+        <span class="cn">iv.</span>
+        <h3>Não há base segura para prometer resultado</h3>
+        <p>Faltam definições compartilhadas, linha de base, atribuição causal e validação da qualidade dos dados.</p>
+      </div>
+      <div class="card" data-r style="--i:6">
+        <span class="cn">v.</span>
+        <h3>30 dias cobrem ciclos semanais reais</h3>
+        <p>Tempo para observar o processo, reconstruir casos, testar recomendações e estimar o caso econômico — não para corrigir toda a rede.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 · ALTERNATIVAS REJEITADAS -->
+  <section class="slide">
+    <div class="ghost">05</div>
+    <p class="eyebrow" data-r style="--i:0">Caminhos que não escolhemos</p>
+    <h2 data-r style="--i:1">Três alternativas, três <em>defeitos de origem</em>.</h2>
+    <div class="alts">
+      <div class="alt" data-r style="--i:2">
+        <span class="tag">Rejeitada</span>
+        <h3>Contrato imediato por resultado</h3>
+        <p class="verdict">Prematuro.</p>
+        <p>Sem linha de base e atribuição, cria disputa sobre o que gerou o resultado e incentiva otimizar sobre uma leitura ainda incompleta.</p>
+      </div>
+      <div class="alt" data-r style="--i:3">
+        <span class="tag">Rejeitada</span>
+        <h3>Diagnóstico puramente consultivo</h3>
+        <p class="verdict">Insuficiente.</p>
+        <p>Produziria análise, mas não demonstraria que a StationZero consegue operar o fluxo de decisão com dados reais.</p>
+      </div>
+      <div class="alt" data-r style="--i:4">
+        <span class="tag">Rejeitada</span>
+        <h3>Integração ampla ou troca de sistemas</h3>
+        <p class="verdict">Inverte a ordem.</p>
+        <p>Primeiro provar o problema, o mecanismo de decisão e o valor; depois decidir quais integrações merecem existir.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 · MODUS OPERANDI -->
+  <section class="slide">
+    <div class="ghost">06</div>
+    <p class="eyebrow" data-r style="--i:0">Modus operandi</p>
+    <h2 data-r style="--i:1">Descoberta rigorosa, <em>prova operacional</em> estreita.</h2>
+    <div class="princ">
+      <div class="p" data-r style="--i:2"><span class="pn">1</span><span class="pt"><b>Começar pelo resultado de negócio</b><span>Problema, responsável, KPI e linha de base antes de automação.</span></span></div>
+      <div class="p" data-r style="--i:3"><span class="pn">2</span><span class="pt"><b>Trabalhar dentro da operação atual</b><span>Dados, sistemas, regras e especialistas da Armadillo antes de nova camada tecnológica.</span></span></div>
+      <div class="p" data-r style="--i:4"><span class="pn">3</span><span class="pt"><b>Tornar o contexto explícito</b><span>Produto, SKU, cor, tamanho, loja, saldo, demanda, ciclo de vida, transferência, exceções.</span></span></div>
+      <div class="p" data-r style="--i:5"><span class="pn">4</span><span class="pt"><b>Testar uma fatia real em shadow mode</b><span>Recomendar sem executar; comparar com os especialistas; registrar acertos, erros e lacunas.</span></span></div>
+      <div class="p" data-r style="--i:6"><span class="pn">5</span><span class="pt"><b>Avaliações e trilha de auditoria</b><span>Toda recomendação mostra evidência, regra aplicada, confiança e decisão humana.</span></span></div>
+      <div class="p" data-r style="--i:7"><span class="pn">6</span><span class="pt"><b>Autonomia apenas com evidência</b><span>De sugestão aprovada a automação — só nos trechos repetíveis, mensuráveis e de risco aceitável.</span></span></div>
+      <div class="p" data-r style="--i:8"><span class="pn">7</span><span class="pt"><b>Produto nasce da operação</b><span>O validado vira capacidade reutilizável — para a Armadillo e, quando generalizável, para o varejo.</span></span></div>
+    </div>
+  </section>
+
+  <!-- 07 · O CICLO -->
+  <section class="slide">
+    <div class="ghost">07</div>
+    <p class="eyebrow" data-r style="--i:0">O ciclo</p>
+    <h2 data-r style="--i:1">Duas fases, um <em>ritmo</em>.</h2>
+    <div class="phases">
+      <div class="phase" data-r style="--i:2">
+        <p class="plbl"><b>Fase 1</b> · esta missão</p>
+        <div class="chain">
+          <span class="step">auditar</span><span class="arrow">→</span>
+          <span class="step">construir a fatia</span><span class="arrow">→</span>
+          <span class="step">avaliar</span><span class="arrow">→</span>
+          <span class="step">decidir</span>
+        </div>
+      </div>
+      <div class="phase two" data-r style="--i:3">
+        <p class="plbl"><b>Fase 2</b> · condicionada à evidência</p>
+        <div class="chain">
+          <span class="step">operar</span><span class="arrow">→</span>
+          <span class="step">observar</span><span class="arrow">→</span>
+          <span class="step">melhorar</span><span class="arrow">→</span>
+          <span class="step">ampliar autonomia</span>
+        </div>
+      </div>
+    </div>
+    <p class="executor" data-r style="--i:4">Em cada etapa, o executor mais simples e confiável: <b>regra determinística, agente ou humano</b>.</p>
+  </section>
+
+  <!-- 08 · O QUE A FASE 1 PRECISA PROVAR -->
+  <section class="slide">
+    <div class="ghost">08</div>
+    <p class="eyebrow" data-r style="--i:0">O contrato de evidência</p>
+    <h2 data-r style="--i:1">O que a Fase 1 <em>precisa provar</em>.</h2>
+    <div class="prove">
+      <div class="pv" data-r style="--i:2"><p class="q">impacto</p><p>Qual problema tem o maior impacto econômico — e controlável.</p></div>
+      <div class="pv" data-r style="--i:3"><p class="q">medição</p><p>Qual é a linha de base e como o problema será medido.</p></div>
+      <div class="pv" data-r style="--i:4"><p class="q">dados</p><p>Se os dados disponíveis sustentam decisões confiáveis.</p></div>
+      <div class="pv" data-r style="--i:5"><p class="q">utilidade</p><p>Se a prova em shadow mode produz recomendações úteis aos especialistas.</p></div>
+      <div class="pv" data-r style="--i:6"><p class="q">atribuição</p><p>Como separar o efeito da StationZero de outras mudanças da operação.</p></div>
+      <div class="pv" data-r style="--i:7"><p class="q">caminho</p><p>Se existe rota defensável para uma Fase 2 orientada a resultado.</p></div>
+    </div>
+  </section>
+
+  <!-- 09 · RACIONAL COMERCIAL -->
+  <section class="slide">
+    <div class="ghost">09</div>
+    <p class="eyebrow" data-r style="--i:0">Racional comercial</p>
+    <h2 data-r style="--i:1">Cada fase cobra pelo que <em>consegue provar</em>.</h2>
+    <div class="money">
+      <div class="mcol fix" data-r style="--i:2">
+        <p class="mtag">Fase 1 · preço fixo</p>
+        <h3>Redução de incerteza, com evidência operacional</h3>
+        <p>A entrega contratada é <b>a decisão bem fundamentada</b> — não um resultado econômico que ainda não tem linha de base para ser medido.</p>
+      </div>
+      <div class="mcol var" data-r style="--i:3">
+        <p class="mtag">Fase 2 · remuneração variável</p>
+        <h3>Só depois das fundações</h3>
+        <p>Variável passa a fazer sentido quando métrica, baseline, atribuição, alçadas e responsabilidades estiverem definidas.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 · REVISÃO -->
+  <section class="slide">
+    <div class="ghost">10</div>
+    <p class="eyebrow" data-r style="--i:0">Vigência</p>
+    <h2 data-r style="--i:1">Vigente até a evidência <em>confirmar — ou substituir</em>.</h2>
+    <p class="lede" data-r style="--i:2">A decisão vale até a Fase 1 produzir evidência. Revisamos antes se a Armadillo apresentar:</p>
+    <div class="revlist">
+      <div class="row" data-r style="--i:3"><span class="num">a.</span><span class="txt">Uma linha de base auditável</span></div>
+      <div class="row" data-r style="--i:4"><span class="num">b.</span><span class="txt">Um problema prioritário já quantificado</span></div>
+      <div class="row" data-r style="--i:5"><span class="num">c.</span><span class="txt">Uma restrição de dados que inviabilize a prova operacional</span></div>
+    </div>
+    <div class="closing" data-r style="--i:6">
+      <span class="rule"></span>
+      <span><b>StationZero</b> × Armadillo · agosto 2026</span>
+    </div>
+  </section>
+
+</div>
+
+<div class="chrome">
+  <span class="counter" id="counter"><b>01</b> / 10</span>
+  <div class="navbtns">
+    <button id="prev" aria-label="Slide anterior">←</button>
+    <button id="next" aria-label="Próximo slide">→</button>
+  </div>
+</div>
+
+<script>
+  const slides = [...document.querySelectorAll('.slide')];
+  const counter = document.getElementById('counter');
+  const progress = document.getElementById('progress');
+  const btnPrev = document.getElementById('prev');
+  const btnNext = document.getElementById('next');
+  let cur = 0;
+
+  function pad(n) { return String(n + 1).padStart(2, '0'); }
+
+  function go(i) {
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, k) => s.classList.toggle('active', k === cur));
+    counter.innerHTML = `<b>${pad(cur)}</b> / ${pad(slides.length - 1)}`;
+    progress.style.width = ((cur + 1) / slides.length * 100) + '%';
+    btnPrev.disabled = cur === 0;
+    btnNext.disabled = cur === slides.length - 1;
+    history.replaceState(null, '', '#' + (cur + 1));
+  }
+
+  btnPrev.addEventListener('click', () => go(cur - 1));
+  btnNext.addEventListener('click', () => go(cur + 1));
+
+  document.addEventListener('keydown', e => {
+    if (['ArrowRight', ' ', 'PageDown'].includes(e.key)) { e.preventDefault(); go(cur + 1); }
+    if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); go(cur - 1); }
+    if (e.key === 'Home') go(0);
+    if (e.key === 'End') go(slides.length - 1);
+  });
+
+  let touchX = null;
+  document.addEventListener('touchstart', e => touchX = e.touches[0].clientX, {passive:true});
+  document.addEventListener('touchend', e => {
+    if (touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 60) go(cur + (dx < 0 ? 1 : -1));
+    touchX = null;
+  }, {passive:true});
+
+  const fromHash = parseInt(location.hash.slice(1), 10);
+  go(Number.isFinite(fromHash) ? fromHash - 1 : 0);
+</script>
+
+</body>
+</html>
